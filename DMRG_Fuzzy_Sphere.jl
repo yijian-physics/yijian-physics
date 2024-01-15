@@ -2,6 +2,9 @@ using ITensors,LinearAlgebra
 
 using WignerSymbols
 
+ITensors.enable_threaded_blocksparse(true) 
+ITensors.Strided.disable_threads() #Using block sparse parallel computation instead of BLAS multithreading
+
 function get_V(N,i,j,k,l,V0,V1)
     ## N = 2s+1, get V[i,j,k,l]
     s = (N-1)/2
