@@ -54,7 +54,26 @@ function ITensors.space(
   return 4
 end
 
-function DMRG_Fuzzy_Sphere_Ising_conserveZ2(N::Int;V0=4.75,V1=1.0,h=3.16,max_bond_dim=400,nsweeps=8,epsilon=1E-10)
+mutable struct myObserver <: AbstractObserver
+   energy_tol::Float64
+   last_energy::Float64
+
+   myObserver(energy_tol=0.0) = new(energy_tol,1000.0)
+end
+
+function ITensors.checkdone!(o::myObserver;kwargs...)
+  sw = kwargs[:sweep]
+  energy = kwargs[:energy]
+  if abs(energy-o.last_energy)/abs(energy) < o.energy_tol
+    println("Stopping DMRG after sweep $sw")
+    return true
+  end
+  # Otherwise, update last_energy and keep going
+  o.last_energy = energy
+  return false
+end
+
+function DMRG_Fuzzy_Sphere_Ising_conserveZ2(N::Int;V0=4.75,V1=1.0,h=3.16,max_bond_dim=400,nsweeps=8,epsilon=1E-10,etol=1E-12)
     ## Switch to XX+Z convention
     sites = [siteind("Electron",Lz=2*i-N-1, conserve_sz=false,conserve_nf=true,conserve_lz=true,conserve_spin_parity=true) for i in 1:N]
     os = OpSum()
@@ -95,15 +114,17 @@ function DMRG_Fuzzy_Sphere_Ising_conserveZ2(N::Int;V0=4.75,V1=1.0,h=3.16,max_bon
     state_odd[div(N,2)] = "Dn"
     psi_prod_odd = MPS(sites,state_odd)
    
-    E0,psi0 = dmrg(H,psi_prod_even; nsweeps, maxdim, cutoff,noise);  # ground state 
-    E2,psi2 = dmrg(H,[psi0],psi_prod_even; nsweeps, maxdim, cutoff,noise,weight=N);  # epsilon state
+    obs = myObserver(etol)
     
-    E1,psi1 = dmrg(H,psi_prod_odd; nsweeps, maxdim, cutoff,noise);  # sigma state
+    E0,psi0 = dmrg(H,psi_prod_even; nsweeps, maxdim, cutoff,noise,observer=obs);  # ground state 
+    E2,psi2 = dmrg(H,[psi0],psi_prod_even; nsweeps, maxdim, cutoff,noise,weight=N,observer=obs);  # epsilon state
+    
+    E1,psi1 = dmrg(H,psi_prod_odd; nsweeps, maxdim, cutoff,noise,observer=obs);  # sigma state
     return [E0,E1,E2],[psi0,psi1,psi2]
 end
 
 
-function DMRG_Fuzzy_Sphere_Ising_no_conserveZ2(N::Int;V0=4.75,V1=1.0,h=3.16,max_bond_dim=400,nsweeps=8,epsilon=1E-10)
+function DMRG_Fuzzy_Sphere_Ising_no_conserveZ2(N::Int;V0=4.75,V1=1.0,h=3.16,max_bond_dim=400,nsweeps=8,epsilon=1E-10,etol=1E-12)
     ## ZZ+X convention, does not conserve Z2
     sites = [siteind("Electron",Lz=2*i-N-1, conserve_sz=false,conserve_nf=true,conserve_lz=true,conserve_spin_parity=false) for i in 1:N]
     os = OpSum()
@@ -132,9 +153,11 @@ function DMRG_Fuzzy_Sphere_Ising_no_conserveZ2(N::Int;V0=4.75,V1=1.0,h=3.16,max_
     state = ["Up" for n=1:N]
     psi_prod = MPS(sites,state)
    
-    E0,psi0 = dmrg(H,psi_prod; nsweeps, maxdim, cutoff,noise);  # ground state 
-    E1,psi1 = dmrg(H,[psi0],psi_prod; nsweeps, maxdim, cutoff,noise,weight=N);  # sigma state
-    E2,psi2 = dmrg(H,[psi0,psi1],psi_prod; nsweeps, maxdim, cutoff,noise,weight=N);  # epsilon state
+    obs = myObserver(etol)
+    
+    E0,psi0 = dmrg(H,psi_prod; nsweeps, maxdim, cutoff,noise,observer=obs);  # ground state 
+    E1,psi1 = dmrg(H,[psi0],psi_prod; nsweeps, maxdim, cutoff,noise,weight=N,observer=obs);  # sigma state
+    E2,psi2 = dmrg(H,[psi0,psi1],psi_prod; nsweeps, maxdim, cutoff,noise,weight=N,observer=obs);  # epsilon state
     return [E0,E1,E2],[psi0,psi1,psi2]
 end
     
