@@ -259,7 +259,7 @@ function compute_g_pinned(N::Int;max_bd=2000,max_sweep=15)
     psi00_proj = MPS(vcat(new_first_tensor,psi00[3:end]))
     
     last_up_state = dag(state(inds(psi10[end])[1],"Up"))
-    proj_last_tensor = contract(psi10[end],first_up_state)
+    proj_last_tensor = contract(psi10[end],last_up_state)
     new_last_tensor = contract(psi10[end-1],proj_last_tensor);
     psi10_proj = MPS(vcat(psi10[1:end-2],new_last_tensor))
     
